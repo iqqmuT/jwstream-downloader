@@ -52,7 +52,7 @@ function enterUsername(page) {
     setTimeout(function() {
         //page.render('login.png');
         enterPassword(page);
-    }, 5000);
+    }, 10000);
 }
 
 function enterPassword(page) {
@@ -66,7 +66,7 @@ function enterPassword(page) {
     // wait 10 sec for loading jw stream page
     setTimeout(function() {
         validateLogin(page);
-    }, 10000);
+    }, 15000);
 }
 
 // Checks if we are logged in by searching word 'Logout' from page
