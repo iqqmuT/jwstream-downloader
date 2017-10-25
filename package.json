@@ -9,8 +9,10 @@
     "co-prompt": "^1.0.0",
     "commander": "^2.11.0",
     "htmlparser2": "^3.9.2",
-    "node-curl-download": "^0.0.2",
-    "phantomjs-prebuilt": "^2.1.7"
+    "phantomjs-prebuilt": "^2.1.7",
+    "request": "^2.83.0",
+    "request-progress": "^3.0.0",
+    "single-line-log": "^1.1.2"
   },
   "devDependencies": {},
   "scripts": {

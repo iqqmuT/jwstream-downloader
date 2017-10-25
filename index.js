@@ -10,11 +10,13 @@ var fs           = require('fs');
 var path         = require('path');
 var childProcess = require('child_process');
 var phantomjs    = require('phantomjs-prebuilt');
-var curl         = require('node-curl-download');
 var program      = require('commander');
 var co           = require('co');
 var prompt       = require('co-prompt');
 var chalk        = require('chalk');
+var request      = require('request');
+var lineLog      = require('single-line-log').stdout;
+var progress     = require('request-progress');
 
 var htmlFile = 'page.html';
 
@@ -110,8 +112,33 @@ function download(videos, dir) {
             console.log(chalk.yellow(target + ' already exists, skipping'));
             continue;
         }
-        var dl = new curl.Download(video.url, target);
         console.log('Downloading ' + chalk.green(target) + ' (' + video.url + ')');
-        dl.start();
+        progress(request(video.url), {
+        })
+        .on('progress', function(state) {
+            if (state.time.remaining) {
+                var hours = Math.floor(state.time.remaining / 3600);
+                var mins = Math.floor(state.time.remaining % 3600 / 60);
+                var secs = Math.floor(state.time.remaining % 60);
+                var remaining = '';
+                if (hours) {
+                    remaining += hours + ':';
+                }
+                if (mins < 10) remaining += '0';
+                remaining += mins + ':';
+
+                if (secs < 10) remaining += '0';
+                remaining += secs;
+
+                lineLog(chalk.yellow('' + Math.round(state.percent * 100) + '% ') + remaining + ' remaining');
+            }
+        })
+        .on('error', function(err) {
+            console.err(err);
+        })
+        .on('end', function() {
+            console.log("\n");
+        })
+        .pipe(fs.createWriteStream(target));
     }
 }
