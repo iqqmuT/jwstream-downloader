@@ -40,12 +40,15 @@ function enterUsername(page) {
     console.log('Entering username...');
 
     // inject username to login form
-    // when focus is moved away from username,
     // redirect should happen to another login page where password can be given
     page.evaluate(function(username) {
         var elem = angular.element(document.getElementById('username'));
         elem.val(username);
         elem.triggerHandler('change').triggerHandler('blur');
+
+        // send click event to submit button
+        var btn = angular.element(document.getElementById('button'));
+        btn.triggerHandler('click');
     }, username);
 
     // wait 5 sec while we are being redirected to new login page
