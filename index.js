@@ -24,24 +24,26 @@ var htmlFile = 'page.html';
 var nameFilter = '';
 
 program
-    .arguments('<dir>')
     .option('-u, --username <username>', 'The user to authenticate as')
     .option('-p, --password <password>', 'The user\'s password')
+    .option('-d, --dir <dir>', 'Working directory')
     .option('-f, --filter <regexp>', 'Video name filter')
-    .action(function(dir) {
-        co(function *() {
-            // if not provided as arguments, prompt credentials
-            var username = program.username || (yield prompt('Username: '));
-            var password = program.password || (yield prompt.password('Password: '));
-            nameFilter = program.filter || nameFilter;
-            run(username, password, dir);
-        });
-    })
+    .option('-j, --json', 'Prints program data in JSON, no downloading')
+    .version('1.3.0')
     .parse(process.argv);
+
+co(function *() {
+    // if not provided as arguments, prompt credentials
+    var username = program.username || (yield prompt('Username: '));
+    var password = program.password || (yield prompt.password('Password: '));
+    workDir = program.dir || '.';
+    nameFilter = program.filter || nameFilter;
+    run(username, password, workDir, program.json);
+});
 
 // -----
 
-function run(username, password, dir) {
+function run(username, password, dir, jsonMode) {
     var childArgs = [
         path.join(__dirname, 'save.js'),
         username,
@@ -51,14 +53,19 @@ function run(username, password, dir) {
 
     // run phantomjs first to save html page
     childProcess.execFile(phantomjs.path, childArgs, function(err, stdout, stderr) {
-        console.log(chalk.blue(stdout));
+        //console.log(chalk.blue(stdout));
         if (stderr) {
             console.warn(chalk.red(stderr));
         }
 
         if (!err) {
             var videos = parse();
-            download(videos, dir);
+            if (jsonMode) {
+                console.log(JSON.stringify(videos, null, 2));
+            }
+            else {
+                download(videos, dir);
+            }
         }
         else {
             console.warn(chalk.red('Reading JW Stream failed.'));
@@ -70,22 +77,56 @@ function run(username, password, dir) {
 function parse() {
     var videos = [];
     var video = null;
+    var path = [];
+    var url = null;
     var parser = new htmlparser.Parser({
         onopentag: function(tagName, attrs) {
+            path.push({
+                tagName: tagName,
+                attrs: attrs
+            });
+
             if (tagName === 'article') {
                 // every video belongs to article tag
                 if (video !== null) {
                     videos.push(video);
                 }
-                video = {};
+                video = { media: {} };
             }
-            else if (tagName === 'h1' && video !== null && video.name === undefined) {
-                video.name = attrs['alt'];
-            }
-            else if (tagName === 'a' && video !== null && video.url === undefined) {
-                video.url = attrs['href'];
+            else if (tagName === 'a' && video !== null) {
+                url = attrs['href'];
             }
         },
+        ontext: function(text) {
+            var l = path.length;
+            if (video !== null) {
+                // language
+                if (l > 4 &&
+                    path[l-3]['tagName'] === 'header' &&
+                    path[l-2]['tagName'] === 'span' &&
+                    path[l-1]['tagName'] === 'span' && path[l-1]['attrs']['data-stringcode']) {
+                    video.language = text;
+                }
+
+                // url
+                if (url) {
+                    video.media[text] = url;
+                    url = null;
+                }
+
+                // program
+                if (l > 3 &&
+                    path[l-2]['tagName'] === 'header' &&
+                    path[l-1]['tagName'] === 'h1') {
+                    // clean text
+                    text = text.replace(/\\n/g, '');
+                    video.program = text.trim();
+                }
+            }
+        },
+        onclosetag: function(tagName) {
+            path.pop();
+        }
     }, { decodeEntities: true });
 
     var html = fs.readFileSync(htmlFile);
@@ -103,17 +144,18 @@ function download(videos, dir) {
     }
     for (var i = 0; i < videos.length; i++) {
         var video = videos[i];
-        if (!video.name.match(regex)) {
-            console.log(chalk.gray('Ignoring ' + video.name));
+        var url = video.media['720p'];
+        if (!video.program.match(regex)) {
+            console.log(chalk.gray('Ignoring ' + video.program));
             continue;
         }
-        var target = path.join(dir, video.name + '.mp4');
+        var target = path.join(dir, video.program + '.mp4');
         if (fs.existsSync(target)) {
             console.log(chalk.yellow(target + ' already exists, skipping'));
             continue;
         }
-        console.log('Downloading ' + chalk.green(target) + ' (' + video.url + ')');
-        progress(request(video.url), {
+        console.log('Downloading ' + chalk.green(target) + ' (' + url + ')');
+        progress(request(url), {
         })
         .on('progress', function(state) {
             if (state.time.remaining) {

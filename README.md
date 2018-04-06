@@ -8,6 +8,10 @@
 
     $ jwstream-downloader -h
 
+## Get program list in JSON
+
+    $ jwstream-downloader --json > programs.json
+
 ## License
 
 ISC

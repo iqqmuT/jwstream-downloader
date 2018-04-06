@@ -28,7 +28,7 @@ function start() {
     var page = webpage.create();
     page.open(url, function(status) {
         if (status === 'success') {
-            console.log('Login page ' + url + ' opened');
+            //console.log('Login page ' + url + ' opened');
             setTimeout(function() {
                 enterUsername(page);
             }, 3000);
@@ -37,7 +37,7 @@ function start() {
 }
 
 function enterUsername(page) {
-    console.log('Entering username...');
+    //console.log('Entering username...');
 
     // inject username to login form
     // redirect should happen to another login page where password can be given
@@ -59,14 +59,14 @@ function enterUsername(page) {
 }
 
 function enterPassword(page) {
-    console.log('Entering password and logging in...');
+    //console.log('Entering password and logging in...');
     // inject password to login form and submit it
     page.evaluate(function(password) {
         document.getElementById('passwordInput').value = password;
         document.getElementById('submitButton').click();
     }, password);
 
-    // wait 10 sec for loading jw stream page
+    // wait 15 sec for loading jw stream page
     setTimeout(function() {
         validateLogin(page);
     }, 15000);
@@ -87,6 +87,6 @@ function validateLogin(page) {
 function save(page) {
     //page.render('page.png');
     fs.write(output, page.content, 'w');
-    console.log('Page saved as ' + output);
+    //console.log('Page saved as ' + output);
     phantom.exit(0);
 }
