@@ -8,8 +8,7 @@
 var htmlparser   = require('htmlparser2');
 var fs           = require('fs');
 var path         = require('path');
-var childProcess = require('child_process');
-var phantomjs    = require('phantomjs-prebuilt');
+const phantom    = require('phantom');
 var program      = require('commander');
 var co           = require('co');
 var prompt       = require('co-prompt');
@@ -17,8 +16,6 @@ var chalk        = require('chalk');
 var request      = require('request');
 var lineLog      = require('single-line-log').stdout;
 var progress     = require('request-progress');
-
-var htmlFile = 'page.html';
 
 // default video name filter
 var nameFilter = '';
@@ -29,7 +26,7 @@ program
     .option('-d, --dir <dir>', 'Working directory')
     .option('-f, --filter <regexp>', 'Video name filter')
     .option('-j, --json', 'Prints program data in JSON, no downloading')
-    .version('1.3.0')
+    .version('1.4.0')
     .parse(process.argv);
 
 co(function *() {
@@ -43,38 +40,24 @@ co(function *() {
 
 // -----
 
-function run(username, password, dir, jsonMode) {
-    var childArgs = [
-        path.join(__dirname, 'save.js'),
-        username,
-        password,
-        'page.html'
-    ];
-
-    // run phantomjs first to save html page
-    childProcess.execFile(phantomjs.path, childArgs, function(err, stdout, stderr) {
-        //console.log(chalk.blue(stdout));
-        if (stderr) {
-            console.warn(chalk.red(stderr));
-        }
-
-        if (!err) {
-            var videos = parse();
-            if (jsonMode) {
-                console.log(JSON.stringify(videos, null, 2));
-            }
-            else {
-                download(videos, dir);
-            }
+async function run(username, password, dir, jsonMode) {
+    const content = await startPhantom(username, password);
+    if (content !== null) {
+        var videos = parse(content);
+        if (jsonMode) {
+            console.log(JSON.stringify(videos, null, 2));
         }
         else {
-            console.warn(chalk.red('Reading JW Stream failed.'));
-            process.exit(1);
+            download(videos, dir);
         }
-    });
+    }
+    else {
+        console.warn(chalk.red('Reading JW Stream failed.'));
+        process.exit(1);
+    }
 }
 
-function parse() {
+function parse(html) {
     var videos = [];
     var video = null;
     var path = [];
@@ -129,7 +112,6 @@ function parse() {
         }
     }, { decodeEntities: true });
 
-    var html = fs.readFileSync(htmlFile);
     parser.write(html);
     parser.end();
 
@@ -182,5 +164,73 @@ function download(videos, dir) {
             console.log("\n");
         })
         .pipe(fs.createWriteStream(target));
+    }
+}
+
+// wait helper function
+function wait(timeout) {
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            resolve();
+        }, timeout);
+    });
+}
+
+// Phantom section
+
+async function startPhantom(username, password) {
+    var url = 'https://stream.jw.org';
+    const instance = await phantom.create();
+    const page = await instance.createPage();
+
+    await page.open(url);
+
+    await wait(3000);
+    const content = await enterUsername(page, username, password);
+
+    await instance.exit();
+    return content;
+}
+
+async function enterUsername(page, username, password) {
+    // inject username to login form
+    // redirect should happen to another login page where password can be given
+    await page.evaluate(function(username) {
+        var elem = angular.element(document.getElementById('username'));
+        elem.val(username);
+        elem.triggerHandler('change').triggerHandler('blur');
+
+        // send click event to submit button
+        var btn = angular.element(document.getElementById('button'));
+        btn.triggerHandler('click');
+    }, username);
+
+    // wait 5 sec while we are being redirected to new login page
+    await wait(5000);
+    return await enterPassword(page, password);
+}
+
+async function enterPassword(page, password) {
+    // inject password to login form and submit it
+    await page.evaluate(function(password) {
+        document.getElementById('passwordInput').value = password;
+        document.getElementById('submitButton').click();
+    }, password);
+
+    // wait 15 sec for loading jw stream page
+    await wait(15000);
+
+    return await validateLogin(page);
+}
+
+// Checks if we are logged in by searching word 'Logout' from page
+async function validateLogin(page) {
+    var re = /Logout/;
+    const content = await page.property('content');
+    if (content.match(re)) {
+        return content;
+    }
+    else {
+        return null;
     }
 }
