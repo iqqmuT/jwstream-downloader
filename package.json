@@ -10,7 +10,7 @@
     "commander": "^2.15.1",
     "htmlparser2": "^3.9.2",
     "phantom": "4.0.5",
-    "request": "^2.83.0",
+    "request": "^2.88.0",
     "request-progress": "^3.0.0",
     "single-line-log": "^1.1.2"
   },
