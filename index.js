@@ -26,7 +26,7 @@ program
     .option('-d, --dir <dir>', 'Working directory')
     .option('-f, --filter <regexp>', 'Video name filter')
     .option('-j, --json', 'Prints program data in JSON, no downloading')
-    .version('1.4.0')
+    .version('1.5.0')
     .parse(process.argv);
 
 co(function *() {
@@ -41,11 +41,16 @@ co(function *() {
 // -----
 
 async function run(username, password, dir, jsonMode) {
-    const content = await startPhantom(username, password);
+    const result = await startPhantom(username, password);
+    const content = result.content;
     if (content !== null) {
         var videos = parse(content);
         if (jsonMode) {
-            console.log(JSON.stringify(videos, null, 2));
+            const data = {
+                videos: videos,
+                session: result.sessionId,
+            };
+            console.log(JSON.stringify(data, null, 2));
         }
         else {
             download(videos, dir);
@@ -181,15 +186,26 @@ function wait(timeout) {
 async function startPhantom(username, password) {
     var url = 'https://stream.jw.org';
     const instance = await phantom.create();
+    phantom.cookiesEnabled = true;
     const page = await instance.createPage();
 
     await page.open(url);
 
     await wait(3000);
     const content = await enterUsername(page, username, password);
+    const cookies = await page.property('cookies');
+    var sessionId = null;
+    for (var i in cookies) {
+        if (cookies[i].name === 'sessionstream') {
+            sessionId = cookies[i].value;
+        }
+    }
 
     await instance.exit();
-    return content;
+    return {
+        content,
+        sessionId,
+    };
 }
 
 async function enterUsername(page, username, password) {
